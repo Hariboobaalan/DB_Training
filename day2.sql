@@ -48,22 +48,16 @@ select employee_id, concat_ws('-',first_name,last_name,email) as UNQ_ID from emp
 alter table employee_table modify email varchar(30);
 
 -- Question11
--- Doubt
+
 -- 11.	Write a SQL query to change the location of Diana to London
-with londonId as (select location_id from locations where city='London')
-update departments
-set
-departments.location_id = londonId
-from 
-departments
- join
-employee_table 
-on
-departments.department_id = employee_table.department_id;
-where
-employee_table.first_name = 'Diana';
+
+update employee_table
+set department_id = (select department_id from departments where location_id = (select location_id from locations where city='London'))
+where first_name = 'Diana';
 
 
+
+select * from departments;
 
 -- Question12
 -- 12.	Fetch all employees with their first name , email , phone (without extension part) and extension (just the extension)  

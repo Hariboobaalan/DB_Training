@@ -234,7 +234,7 @@ select concat(e.first_name,' ',e.last_name) as FULL_NAME from employee_table e
 join departments d on d.department_id =e.department_id
 join locations l on l.location_id = d.location_id
 where l.city = 'Oxford'
-and lower(substr(e.last_name, -2, 1)) = 'e'
+and e.last_name like '%e_'
 and d.department_name not in ('Finance', 'Shipping');
 
 -- Question22

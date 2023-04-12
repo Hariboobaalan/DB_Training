@@ -1,20 +1,23 @@
 -- Question1
 -- 1.	Write a SQL query to find the total salary of employees who is in Tokyo excluding whose first name is Nancy
 
-select sum(salary) from employee_table 
-join departments on employee_table.department_id = departments.department_id 
-join locations on departments.location_id = locations.location_id
-where employee_table.first_name <> 'Nancy' and locations.city = 'Seattle';
+select sum(emp.salary) from employee_table emp
+join departments d on emp.department_id = d.department_id 
+join locations l on d.location_id = l.location_id
+where emp.first_name <> 'Nancy' and l.city = 'Seattle';
 
 -- Question2
 -- 2.	 Fetch all details of employees who has salary more than the avg salary by each department.
-select * 
+select d.department_name, e.*
 from employee_table e 
-where e.salary >= (
-    select avg(salary)
+join departments d 
+on d.department_id = e.department_id
+join
+    (select department_id,avg(salary) as avg_salary
     from employee_table
-    where department_id = e.department_id
-);
+    group by department_id) temp
+on temp.department_id=e.department_id and e.salary>=temp.avg_salary
+order by temp.department_id;
 
 
 -- Question3
@@ -31,14 +34,15 @@ group by l.city, l.state_province;
 
 -- Question4
 -- 4.	Fetch max salary, min salary and avg salary by job and department.  Info:  grouped by department id and job id ordered by department id and max salary
-select d.department_id,
-       max(e.salary) as max_salary,
+select max(e.salary) as max_salary,
        min(e.salary) as min_salary,
-       avg(e.salary) as avg_salary
+       avg(e.salary) as avg_salary,
+       j.job_id,
+       d.department_id
 from employee_table e
 join departments d on e.department_id = d.department_id
 join jobs j on e.job_id = j.job_id
-group by d.department_id, d.department_name, j.job_id, j.job_title
+group by d.department_id, j.job_id
 order by d.department_id, max_salary desc;
 
 
@@ -53,17 +57,26 @@ where l.country_id = 'US' and et.first_name <> 'Nancy';
 
 -- Question6
 -- 6.	Fetch max salary, min salary and avg salary by job id and department id but only for folks who worked in more than one role(job) in a department.
-select job_id,department_id ,max(salary), min(salary), avg(salary) from employee_table et where (select count(distinct e.job_id) from employee_table e where e.department_id = et.department_id)>1 group by job_id, department_id ;
+select max(et.salary) as max_salary, min(et.salary) as min_salary, avg(et.salary) as avg_salary, et.job_id, et.department_id 
+from employee_table et 
+where employee_id in (
+    select employee_id
+    from job_history
+    group by employee_id
+    having count(employee_id) >1 
+    )
+group by job_id, department_id ;
 
 -- Question7
 -- 7.	Display the employee count in each department and also in the same result the null department count categorized as "-" *
 -- Info: * the total employee count categorized as "Total"•	
 
-select ifnull(d.department_name,'-') as department_name, count(e.employee_id) as total
+select ifnull(cast(department_id as string),'-') as department_id, count(e.employee_id)
 from employee_table e
-full outer join departments d on e.department_id = d.department_id
-group by d.department_name
-order by d.department_name;
+group by department_id
+union 
+select 'Total', count(employee_id) from employee_table
+order by department_id;
 
 -- Question8
 -- 8.	Display the jobs held and the employee count. 
@@ -95,13 +108,12 @@ order by d.department_name, l.country_id;
 
 -- Question10
 -- 10.	Display manager names and the number of employees reporting to them by countries (each employee works for only one department, and each department belongs to a country)
-select l.country_id, m.employee_id as manager_id,  count(e.employee_id) as employee_count
+select concat(m.first_name,' ',m.last_name) as manager_name, count(e.employee_id) as employee_count, l.country_id
 from employee_table e
 join employee_table m on e.manager_id = m.employee_id
 join departments d on e.department_id = d.department_id
 join locations l on d.location_id = l.location_id
-group by m.employee_id, l.country_id
-order by l.country_id, manager_id;
+group by e.manager_id, m.first_name, m.last_name,l.country_id;
 
 
 
@@ -148,16 +160,16 @@ select et.department_id as Dept_ID,
        sum(case when region_name = 'Europe' then  employee_count else 0 end) as Europe,
        sum(case when region_name = 'Asia' then 1 else 0 end) as Asia
 from (
-select employee_table.department_id,r.region_name, count(countries.region_id) as employee_count from employee_table
+select e.department_id,r.region_name, count(c.region_id) as employee_count from employee_table e
 join 
-departments d on employee_table.department_id=d.department_id
+departments d on e.department_id=d.department_id
 join 
-locations on locations.location_id=d.location_id
+locations l on l.location_id=d.location_id
 join
-countries on countries.country_id=locations.country_id
+countries c on c.country_id=l.country_id
 join 
-regions r on r.region_id=countries.region_id
-group by employee_table.department_id , r.region_name) as et
+regions r on r.region_id=c.region_id
+group by e.department_id , r.region_name) as et
 group by et.region_name,et.department_id,et.employee_count ;
 
 -- Question14
@@ -173,7 +185,7 @@ where d.department_id is null or e.department_id is not null;
 -- Question15
 -- 15.	write a SQL query to find the employees and their respective managers. Return the first name, last name of the employees and their managers
 select concat(e.first_name,' ',e.last_name) as employee_name, concat(m.first_name,' ',m.last_name) as manager from employee_table e 
-join employee_table m
+left outer join employee_table m
 on e.manager_id = m.employee_id;
 
 
@@ -187,10 +199,10 @@ select et.first_name, et.last_name, d.department_name from employee_table et joi
 
 -- Question18
 -- 18.	The HR decides to make an analysis of the employees working in every department. Help him to determine the salary given in average per department and the total number of employees working in a department.  List the above along with the department id, department name
-select departments.department_id, departments.department_name, count(employee_table.employee_id) as num_employees, avg(employee_table.salary) as avg_salary
-from departments
-left join employee_table on departments.department_id = employee_table.department_id
-group by departments.department_id, departments.department_name;
+select d.department_id, d.department_name, count(e.employee_id) as num_employees, avg(e.salary) as avg_salary
+from departments d
+join employee_table e on d.department_id = e.department_id
+group by d.department_id, d.department_name;
 
 
 -- Question19
@@ -213,7 +225,7 @@ where e.department_id = d.department_id
 and d.location_id = l.location_id
 and l.country_id = c.country_id
 and c.region_id = r.region_id
-and r.region_name in ('Asia', 'Europe');
+and lower(r.region_name) in ('asia', 'europe');
 
 
 -- Question21
@@ -222,7 +234,7 @@ select concat(e.first_name,' ',e.last_name) as FULL_NAME from employee_table e
 join departments d on d.department_id =e.department_id
 join locations l on l.location_id = d.location_id
 where l.city = 'Oxford'
-and lower(LEFT(RIGHT(E.LAST_NAME,2),1)) = 'e'
+and lower(substr(e.last_name, -2, 1)) = 'e'
 and d.department_name not in ('Finance', 'Shipping');
 
 -- Question22
@@ -237,10 +249,9 @@ where datediff(month, hire_date, getdate()) < 50;
 
 -- Question23
 -- 23.	 Display Employee id, first_name, last name, hire_date and salary for employees who has the highest salary for each hiring year. (For eg: John and Deepika joined on year 2023,  and john has a salary of 5000, and Deepika has a salary of 6500. Output should show Deepika’s details only).
+with cte as (select employee_id, row_number() over (partition by year(hire_date) order by salary desc) as top from employee_table )
 select e.employee_id, e.first_name, e.last_name, e.hire_date, e.salary
-from employee_table e
-where e.salary = (
-  select max(salary)
-  from employee_table
-  where year(hire_date) = year(e.hire_date)
-) order by hire_date;
+from employee_table e 
+join cte on e.employee_id = cte.employee_id
+where top=1
+order by year(hire_date);
